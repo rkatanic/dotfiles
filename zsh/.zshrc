@@ -18,9 +18,19 @@ export NVM_DIR="$HOME/.nvm"
 # This loads nvm bash_completion
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  
 
-# User Aliases
+# Aliases
+
+# Docker
 alias dps='docker ps'
 alias dcu='docker compose up -d'
+alias dstats='docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"'
+# Follow logs for a specific container
+alias dlog='docker logs -f'
+
+# Drizzle ORM
+alias drizzle-generate='npx drizzle-kit generate'
+alias drizzle-push='npx drizzle-kit push'
+alias drizzle-studio='npx drizzle-kit studio'
 
 # Run Fastfetch
 fastfetch
