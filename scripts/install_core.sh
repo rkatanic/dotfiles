@@ -7,7 +7,7 @@ sudo add-apt-repository -y ppa:zhangsongcui3371/fastfetch
 sudo apt update
 
 echo "--- Installing Core Packages ---"
-sudo apt install -y git curl wget stow zsh fastfetch build-essential
+sudo apt install -y git curl wget stow zsh fastfetch build-essential zip unzip
 
 # --- Oh My Zsh & Plugins ---
 ZSH_CUSTOM="$HOME/.oh-my-zsh/custom"

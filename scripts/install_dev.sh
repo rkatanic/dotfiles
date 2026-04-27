@@ -5,7 +5,7 @@
 
 echo "--- Starting Development Stack Installation ---"
 
-# --- 1. NVM & Node.js (Dynamic Version Fetching) ---
+# --- NVM & Node.js (Dynamic Version Fetching) ---
 # Check if NVM is already installed to avoid duplicates
 if [ ! -d "$HOME/.nvm" ]; then
     echo "--- Fetching latest NVM version from GitHub API ---"
@@ -32,7 +32,24 @@ else
     echo "--- NVM is already installed. Skipping Node setup. ---"
 fi
 
-# --- 2. Docker Engine & Docker Compose ---
+# --- [ Java / SDKMAN! Section ] ---
+echo "☕ Checking for SDKMAN! (Java Version Manager)..."
+if [ ! -d "$HOME/.sdkman" ]; then
+    echo "Installing SDKMAN!..."
+    # The 'export SDKMAN_DIR' ensures it installs to the right place
+    curl -s "https://get.sdkman.io" | bash
+    
+    # Force load it for this session so we can install a default Java version
+    export SDKMAN_DIR="$HOME/.sdkman"
+    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+    
+    # Optional: Install Java 21 (LTS) immediately
+    sdk install java 21.0.2-open
+else
+    echo "✅ SDKMAN! is already installed."
+fi
+
+# --- Docker Engine & Docker Compose ---
 # Check if Docker command exists on the system
 if ! command -v docker &> /dev/null; then
     echo "--- Installing Docker Engine ---"

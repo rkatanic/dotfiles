@@ -18,6 +18,10 @@ export NVM_DIR="$HOME/.nvm"
 # This loads nvm bash_completion
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  
 
+# SDKMAN! Initialization
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
 # Aliases
 
 # Docker
@@ -31,6 +35,10 @@ alias dlog='docker logs -f'
 alias drizzle-generate='npx drizzle-kit generate'
 alias drizzle-push='npx drizzle-kit push'
 alias drizzle-studio='npx drizzle-kit studio'
+
+# Spring Boot & Java Aliases
+alias mvnrun='./mvnw spring-boot:run'
+alias gradlerun='./gradlew bootRun'
 
 # Run Fastfetch
 fastfetch
