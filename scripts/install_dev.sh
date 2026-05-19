@@ -7,10 +7,14 @@ echo "--- Starting Development Stack Installation ---"
 # --------------------------------------------------
 # NVM + Node.js (LTS)
 # --------------------------------------------------
-if [ ! -d "$HOME/.nvm" ]; then
-    echo "--- Installing NVM ---"
+NVM_VERSION="v0.40.3"
 
-    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+if [ ! -d "$HOME/.nvm" ]; then
+    echo "--- Installing NVM ($NVM_VERSION) ---"
+
+    curl -fsSL \
+        "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" \
+        | bash
 
     export NVM_DIR="$HOME/.nvm"
 
@@ -31,7 +35,10 @@ else
     echo "--- NVM already installed ---"
 
     export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        . "$NVM_DIR/nvm.sh"
+    fi
 fi
 
 # --------------------------------------------------
@@ -39,52 +46,56 @@ fi
 # --------------------------------------------------
 echo "--- Checking SDKMAN! ---"
 
-if [ ! -d "$HOME/.sdkman" ]; then
+export SDKMAN_DIR="$HOME/.sdkman"
+
+if [ ! -d "$SDKMAN_DIR" ]; then
     echo "--- Installing SDKMAN! ---"
 
-    curl -s "https://get.sdkman.io" | bash
+    curl -fsSL "https://get.sdkman.io" | bash
+fi
 
-    export SDKMAN_DIR="$HOME/.sdkman"
+if [ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]; then
+    # SDKMAN is incompatible with set -u
+    set +u
+    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+    set -u
+else
+    echo "ERROR: SDKMAN installation failed."
+    exit 1
+fi
 
-    if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
-        source "$HOME/.sdkman/bin/sdkman-init.sh"
-    else
-        echo "ERROR: SDKMAN installation failed."
-        exit 1
-    fi
-
+if ! command -v java &>/dev/null; then
     echo "--- Installing Java 21 (Temurin LTS) ---"
     sdk install java 21-tem
 else
-    echo "--- SDKMAN already installed ---"
-
-    export SDKMAN_DIR="$HOME/.sdkman"
-    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && \
-        source "$HOME/.sdkman/bin/sdkman-init.sh"
+    echo "--- Java already installed ---"
 fi
 
 # --------------------------------------------------
 # Docker Engine + Compose
 # --------------------------------------------------
-if ! command -v docker &> /dev/null; then
+if ! command -v docker &>/dev/null; then
     echo "--- Installing Docker Engine ---"
 
     DOCKER_REPO="/etc/apt/sources.list.d/docker.list"
+    DOCKER_KEYRING="/etc/apt/keyrings/docker.gpg"
+
+    sudo mkdir -p /etc/apt/keyrings
+
+    if [ ! -f "$DOCKER_KEYRING" ]; then
+        echo "--- Adding Docker GPG key ---"
+
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+            sudo gpg --dearmor \
+            -o "$DOCKER_KEYRING"
+    fi
 
     if [ ! -f "$DOCKER_REPO" ]; then
         echo "--- Adding Docker repository ---"
 
-        sudo mkdir -p /etc/apt/keyrings
-
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
-            sudo gpg --dearmor \
-            -o /etc/apt/keyrings/docker.gpg
-
         echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-        https://download.docker.com/linux/ubuntu \
-        $(lsb_release -cs) stable" |
-        sudo tee "$DOCKER_REPO" > /dev/null
+"deb [arch=$(dpkg --print-architecture) signed-by=$DOCKER_KEYRING] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" |
+        sudo tee "$DOCKER_REPO" >/dev/null
     else
         echo "--- Docker repository already exists ---"
     fi
@@ -99,27 +110,24 @@ if ! command -v docker &> /dev/null; then
         containerd.io \
         docker-buildx-plugin \
         docker-compose-plugin
+else
+    echo "--- Docker already installed ---"
+fi
 
-    echo "--- Configuring Docker permissions ---"
-
+# --------------------------------------------------
+# Docker permissions
+# --------------------------------------------------
+if command -v docker &>/dev/null; then
     if ! groups "$USER" | grep -qw docker; then
+        echo "--- Adding user to docker group ---"
+
         sudo usermod -aG docker "$USER"
 
         echo
-        echo "Docker group added to user."
+        echo "Docker permissions updated."
         echo "Please log out and back in."
     else
         echo "--- User already in docker group ---"
-    fi
-else
-    echo "--- Docker already installed ---"
-
-    if ! groups "$USER" | grep -qw docker; then
-        echo "--- Adding user to docker group ---"
-        sudo usermod -aG docker "$USER"
-
-        echo
-        echo "Please log out and back in for Docker permissions."
     fi
 fi
 
