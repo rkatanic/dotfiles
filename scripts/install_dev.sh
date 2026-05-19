@@ -1,80 +1,129 @@
 #!/bin/bash
-
-# --- Development Stack Installation Script ---
-# This script manages NVM, Node.js (LTS), and Docker Engine for Ubuntu.
+set -euo pipefail
+IFS=$'\n\t'
 
 echo "--- Starting Development Stack Installation ---"
 
-# --- NVM & Node.js (Dynamic Version Fetching) ---
-# Check if NVM is already installed to avoid duplicates
+# --------------------------------------------------
+# NVM + Node.js (LTS)
+# --------------------------------------------------
 if [ ! -d "$HOME/.nvm" ]; then
-    echo "--- Fetching latest NVM version from GitHub API ---"
-    
-    # Retrieve the latest release tag name from GitHub repository
-    NVM_LATEST_VERSION=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep "tag_name" | cut -d '"' -f 4)
-    
-    # Fallback to a known stable version if the API call fails or is rate-limited
-    if [ -z "$NVM_LATEST_VERSION" ]; then
-        echo "Warning: API fetch failed. Using fallback version v0.40.1"
-        NVM_LATEST_VERSION="v0.40.1"
+    echo "--- Installing NVM ---"
+
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+    export NVM_DIR="$HOME/.nvm"
+
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        . "$NVM_DIR/nvm.sh"
+    else
+        echo "ERROR: Failed to load NVM."
+        exit 1
     fi
 
-    echo "--- Installing NVM ($NVM_LATEST_VERSION) ---"
-    curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_LATEST_VERSION}/install.sh" | bash
-    
-    # Immediately load NVM into this script's session to allow Node installation
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    
     echo "--- Installing Node.js LTS ---"
     nvm install --lts
+    nvm use --lts
+    nvm alias default 'lts/*'
+
+    echo "--- Node.js setup complete ---"
 else
-    echo "--- NVM is already installed. Skipping Node setup. ---"
+    echo "--- NVM already installed ---"
+
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 fi
 
-# --- [ Java / SDKMAN! Section ] ---
-echo "☕ Checking for SDKMAN! (Java Version Manager)..."
+# --------------------------------------------------
+# SDKMAN! + Java
+# --------------------------------------------------
+echo "--- Checking SDKMAN! ---"
+
 if [ ! -d "$HOME/.sdkman" ]; then
-    echo "Installing SDKMAN!..."
-    # The 'export SDKMAN_DIR' ensures it installs to the right place
+    echo "--- Installing SDKMAN! ---"
+
     curl -s "https://get.sdkman.io" | bash
-    
-    # Force load it for this session so we can install a default Java version
+
     export SDKMAN_DIR="$HOME/.sdkman"
-    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
-    
-    # Optional: Install Java 21 (LTS) immediately
-    sdk install java 21.0.2-open
+
+    if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
+        source "$HOME/.sdkman/bin/sdkman-init.sh"
+    else
+        echo "ERROR: SDKMAN installation failed."
+        exit 1
+    fi
+
+    echo "--- Installing Java 21 (Temurin LTS) ---"
+    sdk install java 21-tem
 else
-    echo "✅ SDKMAN! is already installed."
+    echo "--- SDKMAN already installed ---"
+
+    export SDKMAN_DIR="$HOME/.sdkman"
+    [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && \
+        source "$HOME/.sdkman/bin/sdkman-init.sh"
 fi
 
-# --- Docker Engine & Docker Compose ---
-# Check if Docker command exists on the system
+# --------------------------------------------------
+# Docker Engine + Compose
+# --------------------------------------------------
 if ! command -v docker &> /dev/null; then
     echo "--- Installing Docker Engine ---"
-    
-    # Update package index and install prerequisite packages
+
+    DOCKER_REPO="/etc/apt/sources.list.d/docker.list"
+
+    if [ ! -f "$DOCKER_REPO" ]; then
+        echo "--- Adding Docker repository ---"
+
+        sudo mkdir -p /etc/apt/keyrings
+
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+            sudo gpg --dearmor \
+            -o /etc/apt/keyrings/docker.gpg
+
+        echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+        https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) stable" |
+        sudo tee "$DOCKER_REPO" > /dev/null
+    else
+        echo "--- Docker repository already exists ---"
+    fi
+
+    echo "--- Installing Docker packages ---"
+
     sudo apt update
-    sudo apt install -y ca-certificates gnupg lsb-release
-    
-    # Add Docker's official GPG key for security
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    
-    # Set up the stable Docker repository
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # Re-update the index and install Docker Engine, CLI, and Compose plugin
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    
-    # Configure Docker group to allow running commands without sudo
+
+    sudo apt install -y \
+        docker-ce \
+        docker-ce-cli \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-compose-plugin
+
     echo "--- Configuring Docker permissions ---"
-    sudo usermod -aG docker $USER
-    echo "SUCCESS: Docker installed. Note: Please log out and back in for group changes to apply."
+
+    if ! groups "$USER" | grep -qw docker; then
+        sudo usermod -aG docker "$USER"
+
+        echo
+        echo "Docker group added to user."
+        echo "Please log out and back in."
+    else
+        echo "--- User already in docker group ---"
+    fi
 else
-    echo "--- Docker is already installed. Skipping. ---"
+    echo "--- Docker already installed ---"
+
+    if ! groups "$USER" | grep -qw docker; then
+        echo "--- Adding user to docker group ---"
+        sudo usermod -aG docker "$USER"
+
+        echo
+        echo "Please log out and back in for Docker permissions."
+    fi
 fi
 
-echo "--- Development Stack Setup Complete ---"
+echo
+echo "===================================="
+echo " Development setup complete"
+echo "===================================="

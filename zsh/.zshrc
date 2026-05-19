@@ -40,5 +40,4 @@ alias drizzle-studio='npx drizzle-kit studio'
 alias mvnrun='./mvnw spring-boot:run'
 alias gradlerun='./gradlew bootRun'
 
-# Run Fastfetch
-fastfetch
+alias ff=fastfetch
